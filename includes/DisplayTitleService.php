@@ -45,11 +45,11 @@ class DisplayTitleService {
 	 *
 	 * @param Title $currentTitle the Title object of the current page
 	 * @param Title $target the Title object that the link is pointing to
-	 * @param HtmlArmor|string &$html the HTML of the link text
+	 * @param HtmlArmor|string|null &$html the HTML of the link text
 	 * @param bool $wrap whether to wrap result in HtmlArmor
 	 * @since 1.3
 	 */
-	public function handleLink( Title $currentTitle, Title $target, HtmlArmor|string &$html, bool $wrap ): void {
+	public function handleLink( Title $currentTitle, Title $target, HtmlArmor|string|null &$html, bool $wrap ): void {
 		// Do not use DisplayTitle if the current page is a disambiguation page
 		if ( $this->disambiguatorLookup->isDisambiguationPage( $currentTitle ) ) {
 			return;
@@ -65,6 +65,10 @@ class DisplayTitleService {
 		$redirectTarget = $this->redirectLookup->getRedirectTarget( $wikiPage );
 		if ( $redirectTarget !== null && $currentTitle === $target->getPrefixedText() ) {
 			return;
+		}
+
+		if ( $html === null ) {
+			$html = $target->getPrefixedText();
 		}
 
 		$text = $html;
@@ -84,12 +88,12 @@ class DisplayTitleService {
 	 * Get displaytitle page property text.
 	 *
 	 * @param Title $title the Title object for the page
-	 * @param HtmlArmor|string &$displaytitle to return the display title, if set
+	 * @param HtmlArmor|string|null &$displaytitle to return the display title, if set
 	 * @param bool $wrap whether to wrap result in HtmlArmor
 	 * @return bool true if the page has a different display title
 	 * @since 1.0
 	 */
-	public function getDisplayTitle( Title $title, HtmlArmor|string &$displaytitle, bool $wrap = false ): bool {
+	public function getDisplayTitle( Title $title, HtmlArmor|string|null &$displaytitle, bool $wrap = false ): bool {
 		$title = $title->createFragmentTarget( '' );
 		if ( !$title->canExist() ) {
 			// If the Title isn't a valid content page (e.g. Special:UserLogin), just return.
