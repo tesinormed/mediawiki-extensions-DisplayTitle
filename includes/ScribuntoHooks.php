@@ -16,7 +16,7 @@ class ScribuntoHooks implements
 	 * @param string $engine engine in use
 	 * @param array &$extraLibraries list of registered libraries
 	 */
-	public function onScribuntoExternalLibraries( string $engine, array &$extraLibraries ) {
+	public function onScribuntoExternalLibraries( string $engine, array &$extraLibraries ): void {
 		if ( $engine === 'lua' ) {
 			$extraLibraries['mw.ext.displaytitle'] = DisplayTitleLuaLibrary::class;
 		}

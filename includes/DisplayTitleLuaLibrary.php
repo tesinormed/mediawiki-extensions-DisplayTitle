@@ -2,9 +2,9 @@
 
 namespace MediaWiki\Extension\DisplayTitle;
 
-use CoreParserFunctions;
 use MediaWiki\Extension\Scribunto\Engines\LuaCommon\LibraryBase;
 use MediaWiki\MediaWikiServices;
+use MediaWiki\Parser\CoreParserFunctions;
 use MediaWiki\Title\Title;
 
 /**
@@ -31,7 +31,7 @@ class DisplayTitleLuaLibrary extends LibraryBase {
 			'set' => [ $this, 'setDisplayTitle' ],
 		];
 
-		return $this->getEngine()->registerInterface( __DIR__ . '/' . 'displaytitle.lua', $lib, [] );
+		return $this->getEngine()->registerInterface( __DIR__ . '/' . 'displaytitle.lua', $lib );
 	}
 
 	/**
@@ -43,15 +43,17 @@ class DisplayTitleLuaLibrary extends LibraryBase {
 	 * @return string[]
 	 */
 	public function getDisplayTitle( string $pageName ): array {
-		if ( strlen( $pageName ) ) {
-			$title = Title::newFromText( $pageName );
-			if ( $title !== null ) {
-				$displayTitleService = MediaWikiServices::getInstance()->get( 'DisplayTitleService' );
-				$displayTitleService->getDisplayTitle( $title, $pageName );
-			}
-			return $this->toLua( $pageName );
+		if ( trim( $pageName ) === '' ) {
+			return [ '' ];
 		}
-		return [ '' ];
+
+		$title = Title::newFromText( $pageName );
+		if ( $title !== null ) {
+			$displayTitleService = MediaWikiServices::getInstance()->getService( 'DisplayTitleService' );
+			$displayTitleService->getDisplayTitle( $title, $pageName );
+		}
+
+		return $this->toLua( $pageName );
 	}
 
 	/**
@@ -63,14 +65,11 @@ class DisplayTitleLuaLibrary extends LibraryBase {
 	 * @return string[]
 	 */
 	public function setDisplayTitle( string $newDisplayTitle ): array {
-		if ( strlen( $newDisplayTitle ) ) {
-			return $this->toLua( CoreParserFunctions::displaytitle(
-				$this->getParser(),
-				$newDisplayTitle
-			) );
-		} else {
+		if ( trim( $newDisplayTitle ) === '' ) {
 			return [ '' ];
 		}
+
+		return $this->toLua( CoreParserFunctions::displaytitle( $this->getParser(), $newDisplayTitle ) );
 	}
 
 	/**
@@ -81,7 +80,7 @@ class DisplayTitleLuaLibrary extends LibraryBase {
 	 * @param mixed $valueToConvert
 	 * @return mixed
 	 */
-	private function convertToLuaValue( $valueToConvert ) {
+	private function convertToLuaValue( mixed $valueToConvert ): mixed {
 		$type = $this->getLuaType( $valueToConvert );
 		if ( $type === 'nil'
 			|| $type === 'function'
@@ -89,6 +88,7 @@ class DisplayTitleLuaLibrary extends LibraryBase {
 		) {
 			return null;
 		}
+
 		if ( is_array( $valueToConvert ) ) {
 			foreach ( $valueToConvert as $key => $value ) {
 				$valueToConvert[$key] = $this->convertToLuaValue( $value );
@@ -96,6 +96,7 @@ class DisplayTitleLuaLibrary extends LibraryBase {
 			array_unshift( $valueToConvert, '' );
 			unset( $valueToConvert[0] );
 		}
+
 		return $valueToConvert;
 	}
 
@@ -105,7 +106,7 @@ class DisplayTitleLuaLibrary extends LibraryBase {
 	 * @param mixed $val
 	 * @return array
 	 */
-	private function toLua( $val ): array {
+	private function toLua( mixed $val ): array {
 		return [ $this->convertToLuaValue( $val ) ];
 	}
 }

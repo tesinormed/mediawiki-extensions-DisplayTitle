@@ -1,6 +1,6 @@
 {
 	"name": "DisplayTitle",
-	"version": "4.0.3",
+	"version": "4.1.0",
 	"author": [
 		"[https://www.mediawiki.org/wiki/User:Cindy.cicalese Cindy Cicalese]",
 		"[https://www.semantic-mediawiki.org/wiki/User:Oetterer Tobias Oetterer]"
@@ -10,7 +10,7 @@
 	"type": "parserhook",
 	"license-name": "MIT",
 	"requires": {
-		"MediaWiki": ">= 1.41.0"
+		"MediaWiki": ">= 1.43.0"
 	},
 	"MessagesDirs": {
 		"DisplayTitle": [
@@ -40,23 +40,18 @@
 	},
 	"Hooks": {
 		"ParserFirstCallInit": "main",
-		"BeforePageDisplay": "main",
-		"HtmlPageLinkRendererBegin": "main",
+		"HtmlPageLinkRendererEnd": "main",
 		"OutputPageParserOutput": "main",
 		"SelfLinkBegin": "main",
-		"SkinTemplateNavigation::Universal": "main",
 		"ScribuntoExternalLibraries": "scribunto"
 	},
 	"config": {
-		"DisplayTitleHideSubtitle": {
-			"value": false
-		},
-		"DisplayTitleExcludes": {
-			"value": []
-		},
 		"DisplayTitleFollowRedirects": {
-			"value": true
+			"value": false
 		}
+	},
+	"ConfigRegistry": {
+		"displaytitle": "GlobalVarConfig::newInstance"
 	},
 	"manifest_version": 2
 }

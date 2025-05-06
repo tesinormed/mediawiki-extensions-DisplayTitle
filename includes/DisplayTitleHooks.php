@@ -2,31 +2,22 @@
 
 namespace MediaWiki\Extension\DisplayTitle;
 
-use HtmlArmor;
-use MediaWiki\Hook\BeforePageDisplayHook;
+use MediaWiki\Context\RequestContext;
 use MediaWiki\Hook\OutputPageParserOutputHook;
 use MediaWiki\Hook\ParserFirstCallInitHook;
 use MediaWiki\Hook\SelfLinkBeginHook;
-use MediaWiki\Hook\SkinTemplateNavigation__UniversalHook;
-use MediaWiki\Linker\Hook\HtmlPageLinkRendererBeginHook;
-use MediaWiki\Linker\LinkRenderer;
-use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Linker\Hook\HtmlPageLinkRendererEndHook;
 use MediaWiki\Output\OutputPage;
+use MediaWiki\Parser\Parser;
+use MediaWiki\Parser\ParserOutput;
 use MediaWiki\Title\NamespaceInfo;
 use MediaWiki\Title\Title;
-use Parser;
-use ParserOutput;
-use RequestContext;
-use Skin;
-use SkinTemplate;
 
 class DisplayTitleHooks implements
 	ParserFirstCallInitHook,
-	BeforePageDisplayHook,
-	HtmlPageLinkRendererBeginHook,
+	HtmlPageLinkRendererEndHook,
 	OutputPageParserOutputHook,
-	SelfLinkBeginHook,
-	SkinTemplateNavigation__UniversalHook
+	SelfLinkBeginHook
 {
 	private DisplayTitleService $displayTitleService;
 	private NamespaceInfo $namespaceInfo;
@@ -40,122 +31,52 @@ class DisplayTitleHooks implements
 	}
 
 	/**
-	 * Implements ParserFirstCallInit hook.
-	 * See https://www.mediawiki.org/wiki/Manual:Hooks/ParserFirstCallInit
-	 * @since 1.0
-	 * @param Parser $parser the Parser object
+	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/ParserFirstCallInit
+	 * @inheritDoc
 	 */
-	public function onParserFirstCallInit( $parser ) {
-		$parser->setFunctionHook(
-			'getdisplaytitle',
-			[ $this, 'getdisplaytitleParserFunction' ]
+	public function onParserFirstCallInit( $parser ): void {
+		$parser->setFunctionHook( 'getdisplaytitle', [ $this, 'onParserFunctionHook' ] );
+	}
+
+	public function onParserFunctionHook( Parser $parser, string $pagename ): string {
+		$title = Title::newFromText( $pagename );
+
+		if ( $title !== null ) {
+			$this->displayTitleService->getDisplayTitle( $title, $pagename );
+		}
+
+		return $pagename;
+	}
+
+	/**
+	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/HtmlPageLinkRendererEnd
+	 * @inheritDoc
+	 */
+	public function onHtmlPageLinkRendererEnd( $linkRenderer, $target, $isKnown, &$text, &$attribs, &$ret ): void {
+		$title = RequestContext::getMain()->getTitle();
+		if ( $title === null ) {
+			return;
+		}
+
+		$this->displayTitleService->handleLink(
+			$title,
+			Title::newFromLinkTarget( $target ),
+			$text,
+			wrap: true
 		);
 	}
 
 	/**
-	 * Handle #getdisplaytitle parser function.
-	 *
-	 * @since 1.0
-	 * @param Parser $parser the Parser object
-	 * @param string $pagename the name of the page
-	 * @return string the displaytitle of the page; defaults to pagename if
-	 * displaytitle is not set
+	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/SelfLinkBegin
+	 * @inheritDoc
 	 */
-	public function getdisplaytitleParserFunction( Parser $parser, string $pagename ): string {
-		$title = Title::newFromText( $pagename );
-		if ( $title !== null ) {
-			$this->displayTitleService->getDisplayTitle( $title, $pagename );
-		}
-		return $pagename;
-	}
-
-	// phpcs:disable MediaWiki.NamingConventions.LowerCamelFunctionsName.FunctionName
-
-	/**
-	 * Implements SkinTemplateNavigation::Universal hook.
-	 * See https://www.mediawiki.org/wiki/Manual:Hooks/SkinTemplateNavigation::Universal
-	 *
-	 * Migrated from PersonalUrls hook, see https://phabricator.wikimedia.org/T319087
-	 *
-	 * @since 1.5
-	 * @param SkinTemplate $sktemplate SkinTemplate object providing context
-	 * @param array &$links The array of arrays of URLs set up so far
-	 */
-	public function onSkinTemplateNavigation__Universal( $sktemplate, &$links ): void {
-		$pagename = null;
-		if ( $sktemplate->getUser()->isRegistered() ) {
-			$menu_urls = $links['user-menu'] ?? [];
-			if ( isset( $menu_urls['userpage'] ) ) {
-				$pagename = $menu_urls['userpage']['text'];
-				$title = $sktemplate->getUser()->getUserPage();
-				$this->displayTitleService->getDisplayTitle( $title, $pagename );
-				$links['user-menu']['userpage']['text'] = $pagename;
-			}
-			$page_urls = $links['user-page'] ?? [];
-			if ( isset( $page_urls['userpage'] ) ) {
-				// If we determined $pagename already, don't do so again.
-				if ( $pagename === null ) {
-					$pagename = $page_urls['userpage']['text'];
-					$title = $sktemplate->getUser()->getUserPage();
-					$this->displayTitleService->getDisplayTitle( $title, $pagename );
-				}
-				$links['user-page']['userpage']['text'] = $pagename;
-			}
-		}
-	}
-
-	/**
-	 * Implements HtmlPageLinkRendererBegin hook.
-	 * See https://www.mediawiki.org/wiki/Manual:Hooks/HtmlPageLinkRendererBegin
-	 * Handle links to other pages.
-	 *
-	 * @since 1.4
-	 * @param LinkRenderer $linkRenderer the LinkRenderer object
-	 * @param LinkTarget $target the LinkTarget that the link is pointing to
-	 * @param string|null|HtmlArmor &$text the contents that the <a> tag should have
-	 * @param string[] &$customAttribs the HTML attributes that the <a> tag should have
-	 * @param string[] &$query the query string to add to the generated URL
-	 * @param string &$ret the value to return if the hook returns false
-	 */
-	public function onHtmlPageLinkRendererBegin( $linkRenderer, $target, &$text, &$customAttribs, &$query, &$ret ) {
-		$title = RequestContext::getMain()->getTitle();
-		if ( $title ) {
-			$this->displayTitleService->handleLink(
-				$title->getPrefixedText(),
-				Title::newFromLinkTarget( $target ),
-				$text,
-				true
-			);
-		}
-	}
-
-	/**
-	 * Implements SelfLinkBegin hook.
-	 * See https://www.mediawiki.org/wiki/Manual:Hooks/SelfLinkBegin
-	 * Handle self links.
-	 *
-	 * @since 1.3
-	 * @param Title $nt the Title object of the page
-	 * @param string &$html the HTML of the link text
-	 * @param string &$trail Text after link
-	 * @param string &$prefix Text before link
-	 * @param string &$ret the value to return if the hook returns false
-	 */
-	public function onSelfLinkBegin( $nt, &$html, &$trail, &$prefix, &$ret ) {
-		$this->displayTitleService->handleLink( $nt->getPrefixedText(), $nt, $html, false );
-	}
-
-	/**
-	 * Implements BeforePageDisplay hook.
-	 * See https://www.mediawiki.org/wiki/Manual:Hooks/BeforePageDisplay
-	 * Display subtitle if requested
-	 *
-	 * @since 1.0
-	 * @param OutputPage $out the OutputPage object
-	 * @param Skin $skin the Skin object
-	 */
-	public function onBeforePageDisplay( $out, $skin ): void {
-		$this->displayTitleService->setSubtitle( $out );
+	public function onSelfLinkBegin( $nt, &$html, &$trail, &$prefix, &$ret ): void {
+		$this->displayTitleService->handleLink(
+			$nt,
+			$nt,
+			$html,
+			wrap: false
+		);
 	}
 
 	/**
@@ -163,22 +84,25 @@ class DisplayTitleHooks implements
 	 * See https://www.mediawiki.org/wiki/Manual:Hooks/OutputPageParserOutput
 	 * Handle talk page title.
 	 *
-	 * @since 1.0
 	 * @param OutputPage $outputPage
 	 * @param ParserOutput $parserOutput
+	 * @since 1.0
 	 */
 	public function onOutputPageParserOutput( $outputPage, $parserOutput ): void {
 		$title = $outputPage->getTitle();
-		if ( $title !== null && $title->isTalkPage() ) {
-			$subjectPage = Title::castFromLinkTarget( $this->namespaceInfo->getSubjectPage( $title ) );
-			if ( $subjectPage->exists() ) {
-				$found = $this->displayTitleService->getDisplayTitle( $subjectPage, $displaytitle );
-				if ( $found ) {
-					$displaytitle = wfMessage( 'displaytitle-talkpagetitle',
-						$displaytitle )->plain();
-					$parserOutput->setTitleText( $displaytitle );
-				}
-			}
+		if ( $title === null || !$title->isTalkPage() ) {
+			return;
 		}
+
+		$subjectPage = Title::castFromLinkTarget( $this->namespaceInfo->getSubjectPage( $title ) );
+		if ( $subjectPage === null || !$subjectPage->exists() ) {
+			return;
+		}
+
+		if ( !$this->displayTitleService->getDisplayTitle( $subjectPage, $displaytitle ) ) {
+			return;
+		}
+
+		$parserOutput->setTitleText( wfMessage( 'displaytitle-talkpagetitle', $displaytitle )->plain() );
 	}
 }
