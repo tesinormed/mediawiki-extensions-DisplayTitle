@@ -4,9 +4,7 @@ namespace MediaWiki\Extension\DisplayTitle;
 
 use MediaWiki\Extension\Scribunto\Hooks\ScribuntoExternalLibrariesHook;
 
-class ScribuntoHooks implements
-	ScribuntoExternalLibrariesHook
-{
+class ScribuntoHooks implements ScribuntoExternalLibrariesHook {
 	/**
 	 * Implements ScribuntoExternalLibraries hook.
 	 * See https://www.mediawiki.org/wiki/Extension:Scribunto#Other_pages
